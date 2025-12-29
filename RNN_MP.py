@@ -208,12 +208,12 @@ print("MPアルゴリズム開始")
 
 n_train = 10             # 事前分布のサンプリング関数
 d = 3                    # 入力次元の数
-variance = 0.02          #MSEの分散
+variance = 0.01          #MSEの分散
 T = 20                   #サンプリング回数
 k = 10                   #トップk
-values = [round(i * 0.0002, 4) for i in range(1, 51)]
+values = [round(i * 0.0002, 4) for i in range(1, 101)]
 param_grid = [values,values,
- [round(i * 0.00002, 5) for i in range(1, 51)]]
+ [round(i * 0.00002, 5) for i in range(1, 101)]]
 x_all = list(itertools.product(*param_grid))
 x_all = np.array(x_all)     # NumPy配列に変換
 x_all = x_all.astype(np.float32)
@@ -259,10 +259,11 @@ for t in range(T):
     K_A = rbf_kernel(X_A, X_A)
     gamma = mutual_information(K_A, variance)
     # print("近似最大情報利得 γ_{t-1} =", gamma)
+    B = 1
     if t > 1:
-      beta = (1 + math.sqrt(variance) * math.sqrt(2 * gamma + 1 + math.log(1/0.0001)))**2
+      beta = (B + math.sqrt(variance) * math.sqrt(2 * gamma + 1 + math.log(1/0.0001)))**2
     else:
-      beta = 1
+      beta = B
     sum_mu =  0
     sum_beta_val = 0
     for row in top_k:
@@ -384,8 +385,8 @@ param_dict = {
 best_model = build_lstm_model(**param_dict)
 history = best_model.fit(
     X_train, y_train,
-    epochs=10,
-    batch_size=64,
+    epochs=20,
+    batch_size=32,
     validation_data=(X_test, y_test),
     verbose=1
 )
