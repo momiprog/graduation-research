@@ -20,23 +20,71 @@ np.random.seed(1234)
 tf.random.set_seed(1234)
 
 
+# # 1. データ取得
+# ticker = "7203.T"  # トヨタ自動車
+# start_date = "2018-01-01"
+# end_date = "2024-12-31"
+
+# print("データ取得中")
+# data = yf.download(ticker, start=start_date, end=end_date)
+
+# # 終値を使用
+# close_data = data["Close"].values.reshape(-1, 1)
+
+# # 2. 前処理
+# # 正規化
+# scaler = MinMaxScaler(feature_range=(0, 1))
+# scaled_data = scaler.fit_transform(close_data)
+
+# # 時系列データの作成（過去60日分 → 翌日）
+# def create_sequences(dataset, window_size=60):
+#     X, y = [], []
+#     for i in range(window_size, len(dataset)):
+#         X.append(dataset[i - window_size:i, 0])
+#         y.append(dataset[i, 0])
+#     return np.array(X), np.array(y)
+
+# window_size = 60
+# X, y = create_sequences(scaled_data, window_size)
+# X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+
+# # 訓練・テスト分割
+# train_size = int(len(X) * 0.8)
+# X_train, X_test = X[:train_size], X[train_size:]
+# y_train, y_test = y[:train_size], y[train_size:]
+
+# =========================
 # 1. データ取得
+# =========================
 ticker = "7203.T"  # トヨタ自動車
 start_date = "2018-01-01"
 end_date = "2024-12-31"
 
-print("データ取得中")
+print("データ取得中...")
 data = yf.download(ticker, start=start_date, end=end_date)
 
-# 終値を使用
-close_data = data["Close"].values.reshape(-1, 1)
+close_data = data[["Close"]]
 
-# 2. 前処理
-# 正規化
+# =========================
+# 2. データ分割（時系列）
+# =========================
+# 学習用：2018–2022
+train_data = close_data.loc["2018-01-01":"2022-12-31"]
+
+# テスト入力用：2023–2024（2024予測のために必要）
+test_input_data = close_data.loc["2023-01-01":"2024-12-31"]
+
+# =========================
+# 3. 正規化（学習データのみでfit）
+# =========================
 scaler = MinMaxScaler(feature_range=(0, 1))
-scaled_data = scaler.fit_transform(close_data)
 
-# 時系列データの作成（過去60日分 → 翌日）
+train_scaled = scaler.fit_transform(train_data)
+test_scaled = scaler.transform(test_input_data)
+
+# =========================
+# 4. シーケンス作成関数
+# =========================
 def create_sequences(dataset, window_size=60):
     X, y = [], []
     for i in range(window_size, len(dataset)):
@@ -45,13 +93,35 @@ def create_sequences(dataset, window_size=60):
     return np.array(X), np.array(y)
 
 window_size = 60
-X, y = create_sequences(scaled_data, window_size)
-X = np.reshape(X, (X.shape[0], X.shape[1], 1))
 
-# 訓練・テスト分割
-train_size = int(len(X) * 0.8)
-X_train, X_test = X[:train_size], X[train_size:]
-y_train, y_test = y[:train_size], y[train_size:]
+# 学習データ
+X_train, y_train = create_sequences(train_scaled, window_size)
+
+# テスト用（2023–2024を含む）
+X_test_all, y_test_all = create_sequences(test_scaled, window_size)
+
+# =========================
+# 5. 2024年分のみ抽出（評価対象）
+# =========================
+test_dates = test_input_data.index[window_size:]
+mask_2024 = test_dates >= "2024-01-01"
+
+X_test = X_test_all[mask_2024]
+y_test = y_test_all[mask_2024]
+
+# =========================
+# 6. LSTM用に reshape
+# =========================
+X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
+
+# =========================
+# 7. 確認
+# =========================
+print("X_train shape:", X_train.shape)
+print("y_train shape:", y_train.shape)
+print("X_test shape :", X_test.shape)
+print("y_test shape :", y_test.shape)
 
 # 3. モデル構築
 def build_lstm_model(n_units1=256, n_units2=256, dropout1=0.2, dropout2=0.2, lr=0.001):
@@ -149,17 +219,18 @@ def build_lstm_model(n_units1=256, n_units2=256, dropout1=0.2, dropout2=0.2, lr=
 
 
 param_list = [
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
-    {"n_units1": 256, "n_units2": 256, "dropout1": 0.013, "dropout2": 0.325, "lr": 0.001},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000002},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000004},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000006},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000008},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000010},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000012},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000014},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000016},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000018},
+    {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000020},
 ]
+
 
 
 
