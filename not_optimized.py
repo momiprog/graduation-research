@@ -231,11 +231,6 @@ param_list = [
     {"n_units1": 256, "n_units2": 256, "dropout1": 0.002, "dropout2": 0.2, "lr": 0.000020},
 ]
 
-
-
-
-
-
 results = []
 
 for i, params in enumerate(param_list):

@@ -24,46 +24,46 @@ random.seed(1234)
 np.random.seed(1234)
 tf.random.set_seed(1234)
 
-def rbf_kernel(X1, X2, length_scale=1):
-    """RBFカーネル関数"""
-    sq_dists = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * X1.dot(X2.T)
-    return np.exp(-sq_dists /(2 * length_scale**2))
+# def rbf_kernel(X1, X2, length_scale=1):
+#     """RBFカーネル関数"""
+#     sq_dists = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * X1.dot(X2.T)
+#     return np.exp(-sq_dists /(2 * length_scale**2))
 
-def mutual_information(K_A, sigma2):
-    # I(y_A; f_A) = 0.5 * log det(I + sigma^-2 K_A)
-    n = K_A.shape[0]
-    return 0.5 * np.linalg.slogdet(np.eye(n) + (1/sigma2) * K_A)[1]
+# def mutual_information(K_A, sigma2):
+#     # I(y_A; f_A) = 0.5 * log det(I + sigma^-2 K_A)
+#     n = K_A.shape[0]
+#     return 0.5 * np.linalg.slogdet(np.eye(n) + (1/sigma2) * K_A)[1]
 
-def greedy_max_info_gain(X, kernel, sigma2, t):
-    n = len(X)
-    if t > n:
-        raise ValueError(f"t={t} はサンプル数 n={n} より大きいので選べない")
+# def greedy_max_info_gain(X, kernel, sigma2, t):
+#     n = len(X)
+#     if t > n:
+#         raise ValueError(f"t={t} はサンプル数 n={n} より大きいので選べない")
 
-    A = []
+#     A = []
 
-    for _ in range(t):
-        best_gain = -np.inf
-        best_idx = None
+#     for _ in range(t):
+#         best_gain = -np.inf
+#         best_idx = None
 
-        for i in range(n):
-            if i in A:
-                continue
+#         for i in range(n):
+#             if i in A:
+#                 continue
 
-            A_new = A + [i]
-            X_A = X[A_new]                  #先に部分抽出
-            K_A = kernel(X_A, X_A)          #部分だけ計算
-            gain = mutual_information(K_A, sigma2)
+#             A_new = A + [i]
+#             X_A = X[A_new]                  #先に部分抽出
+#             K_A = kernel(X_A, X_A)          #部分だけ計算
+#             gain = mutual_information(K_A, sigma2)
 
-            if gain > best_gain:
-                best_gain = gain
-                best_idx = i
+#             if gain > best_gain:
+#                 best_gain = gain
+#                 best_idx = i
 
-        if best_idx is None:
-            raise RuntimeError("候補点が尽きたが t 点の選択を要求されている")
+#         if best_idx is None:
+#             raise RuntimeError("候補点が尽きたが t 点の選択を要求されている")
 
-        A.append(best_idx)
+#         A.append(best_idx)
 
-    return A
+#     return A
 
 # 3. モデル構築関数（ベイズ最適化で使用）
 def build_lstm_model(dropout1=0.2, dropout2=0.2, lr=0.001):
@@ -131,10 +131,10 @@ close_data = data[["Close"]]
 # 2. データ分割（時系列）
 # =========================
 # 学習用：2018–2022
-train_data = close_data.loc["2018-01-01":"2022-12-31"]
+train_data = close_data.loc["2018-01-01":"2023-10-03"]
 
 # テスト入力用：2023–2024（2024予測のために必要）
-test_input_data = close_data.loc["2023-01-01":"2024-12-31"]
+test_input_data = close_data.loc["2023-10-04":"2024-12-31"]
 
 # =========================
 # 3. 正規化（学習データのみでfit）
@@ -203,17 +203,17 @@ def evaluate_model(dropout1, dropout2, lr):
     mse = mean_squared_error(y_test, predicted)
     return -mse  # ベイズ最適化では最大化なのでマイナス
 
-print("MPアルゴリズム開始")
+print("top-kアルゴリズム開始")
 # optimizer.maximize(init_points=5, n_iter=10)
 
 n_train = 10             # 事前分布のサンプリング関数
 d = 3                    # 入力次元の数
-variance = 0.01          #MSEの分散
+variance = 0.001          #MSEの分散
 T = 20                   #サンプリング回数
 k = 10                   #トップk
-values = [round(i * 0.0002, 4) for i in range(1, 101)]
+values = [round(i * 0.004, 4) for i in range(1, 101)]
 param_grid = [values,values,
- [round(i * 0.00002, 5) for i in range(1, 101)]]
+ [round(i * 0.000008, 6) for i in range(1, 101)]]
 x_all = list(itertools.product(*param_grid))
 x_all = np.array(x_all)     # NumPy配列に変換
 x_all = x_all.astype(np.float32)
@@ -252,16 +252,17 @@ for t in range(T):
 
     # top_k と not-top_k の lower/upper を作る（数値で保持）
     top_k_lu = []     # 各要素: [x1...xd, lower, upper]
-    A = greedy_max_info_gain(x_all, rbf_kernel, variance, t-1)
-    #A に対応する点だけを先に抜き出す
-    X_A = x_all[A]
-    #必要な部分カーネルだけを直接計算
-    K_A = rbf_kernel(X_A, X_A)
-    gamma = mutual_information(K_A, variance)
+    # A = greedy_max_info_gain(x_all, rbf_kernel, variance, t-1)
+    # #A に対応する点だけを先に抜き出す
+    # X_A = x_all[A]
+    # #必要な部分カーネルだけを直接計算
+    # K_A = rbf_kernel(X_A, X_A)
+    # gamma = mutual_information(K_A, variance)
     # print("近似最大情報利得 γ_{t-1} =", gamma)
-    B = 1
+    B = 2
+    C = 0.5
     if t > 1:
-      beta = (B + math.sqrt(variance) * math.sqrt(2 * gamma + 1 + math.log(1/0.0001)))**2
+      beta = (B + math.sqrt(variance) * math.sqrt(2 * C *(math.log(t+1))**(d+1) + 1 + math.log(1/0.0001)))**2
     else:
       beta = B
     sum_mu =  0
